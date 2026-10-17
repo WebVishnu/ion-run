@@ -353,6 +353,7 @@ export function createSim({ seed = 1, difficulty = 'normal', autoTrick = false }
         break;
       case 'hop':
         if (p.level === 1) grab();
+        else if (p.air) startManeuver('pitch', 1); // pressing hop again in the air (double tap) is a front flip
         else hop();
         break;
       case 'grab':

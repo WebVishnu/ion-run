@@ -13,7 +13,7 @@ export const ACTION_LABELS = {
   right: 'Steer / roll right',
   up: 'Flip forward (in air)',
   down: 'Brake / flip back',
-  hop: 'Thruster hop',
+  hop: 'Thruster hop (again in the air: flip)',
   grab: 'Grab ceiling',
   pause: 'Pause',
 };

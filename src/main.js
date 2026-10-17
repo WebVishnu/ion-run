@@ -252,7 +252,7 @@ async function boot() {
       }
     } else if (tu.step === 2) {
       if (s.pips >= 1) {
-        ui.hint(coarse ? 'Tap Hop to jump over traffic' : `Press ${keyName('hop')} to hop over traffic`);
+        ui.hint(coarse ? 'Tap Hop to jump over traffic' : `Press ${keyName('hop')} to hop over traffic. Press it again in the air to flip.`);
         if (tu.hopped || tu.t > 10) {
           tu.step = 3;
           tu.t = 0;
@@ -263,7 +263,7 @@ async function boot() {
       }
     } else if (tu.step === 3) {
       if (tu.hopped && !tu.landed) {
-        ui.hint(coarse ? 'In the air, swipe to roll or flip. Land level.' : `In the air, ${keyName('left')} and ${keyName('right')} roll, ${keyName('up')} and ${keyName('down')} flip. Land level.`);
+        ui.hint(coarse ? 'In the air, double-tap Hop to flip or swipe to roll. Land level.' : `In the air, ${keyName('hop')} again flips, ${keyName('left')} and ${keyName('right')} roll. Land level.`);
       } else ui.hint(null);
       if (tu.landed || tu.t > 9) tu.step = 4;
     } else {

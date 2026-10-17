@@ -100,6 +100,25 @@ test.describe('Ion Run', () => {
     expect(game.errors).toEqual([]);
   });
 
+  test('double Space: the second press in the air flips the car', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'keyboard only');
+    const game = new IonRun(page);
+    await game.open();
+    await game.startAndWait();
+    await page.evaluate(() => {
+      const s = window.__ionrun.state;
+      s.player.invuln = 1e6; // this check is about the input, not traffic
+      s.pips = 3;
+    });
+    await page.keyboard.press('Space');
+    await expect.poll(async () => (await game.state()).air).toBe(true);
+    await page.keyboard.press('Space');
+    await expect.poll(() => page.evaluate(() => window.__ionrun.state.stats.flips), { timeout: 10_000 }).toBe(1);
+    const hops = (await game.state()).stats.hops;
+    expect(hops).toBe(1); // one hop, one flip
+    expect(game.errors).toEqual([]);
+  });
+
   test('pausing freezes the run and resume continues it', async ({ page }) => {
     const game = new IonRun(page);
     await game.open();

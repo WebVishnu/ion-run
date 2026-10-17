@@ -366,6 +366,33 @@ describe('air maneuvers and landing', () => {
     expect(sim.state.stats.combos).toBe(1);
   });
 
+  it('does a front flip when hop is pressed again in the air (double tap)', () => {
+    const { sim, run } = emptyWorld();
+    const events = collectEvents(sim);
+    sim.action('hop');
+    run(9); // about 0.15 s later
+    expect(sim.state.player.air).toBe(true);
+    sim.action('hop');
+    expect(sim.state.player.maneuvers[0]).toMatchObject({ axis: 'pitch', dir: 1 });
+    run(70);
+    events.flush();
+    expect(sim.state.stats.flips).toBe(1);
+    expect(sim.state.stats.hops).toBe(1); // the second press did not spend another pip
+    expect(events.seen.some((e) => e.type === 'landClean')).toBe(true);
+    expect(sim.state.over).toBe(false);
+  });
+
+  it('lets a double-tap flip follow a roll, up to the two-trick limit', () => {
+    const { sim, run } = emptyWorld();
+    sim.action('hop');
+    sim.action('right');
+    sim.action('hop');
+    sim.action('hop');
+    run(70);
+    expect(sim.state.stats.tricks).toBe(2);
+    expect(sim.state.over).toBe(false);
+  });
+
   it('limits a hop to two maneuvers', () => {
     const { sim, run } = emptyWorld();
     sim.action('hop');

@@ -34,7 +34,7 @@ or Netlify. All paths are relative and no external assets are loaded.
 | Brake | Down, S | Brake button |
 | Thruster hop | Space | Hop button |
 | Roll (in the air) | Left / Right | Swipe sideways |
-| Flip (in the air) | Up / Down | Swipe up or down |
+| Front flip (in the air) | Space again (double tap Space), or Up / Down | Double-tap Hop, or swipe up or down |
 | Stick to the roof (in a tunnel) | Shift or E | Hold the Hop button |
 | Pause | P or Esc | Pause button |
 
