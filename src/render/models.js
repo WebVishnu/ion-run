@@ -10,6 +10,7 @@ import { COLORS, LANE_W, VEHICLES } from '../config.js';
 
 // ---------------------------------------------------------------- liveries
 export const LIVERIES = [
+  { id: 'glacier', name: 'Glacier Silver', body: 0xc3c8d0, accent: 0xe3b04b, glow: 0xff6a3d, price: 0 },
   { id: 'midnight', name: 'Midnight Copper', body: 0x10204a, accent: 0xc77b3b, glow: 0x35e0ff, price: 0 },
   { id: 'aurora', name: 'Aurora Teal', body: 0x0c7a78, accent: 0xe8c07a, glow: 0x7dffe9, price: 150 },
   { id: 'ember', name: 'Ember', body: 0x8a1f1a, accent: 0xffb36b, glow: 0xff7a3a, price: 300 },
@@ -73,183 +74,203 @@ function softBlobTexture() {
 }
 
 // ---------------------------------------------------------------- hero car
-const profileToMesh = (shape, depth, bevel, material) => {
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth,
-    bevelEnabled: true,
-    bevelSize: bevel,
-    bevelThickness: bevel,
-    bevelSegments: 3,
-    curveSegments: 14,
-  });
-  geo.translate(0, 0, -depth / 2);
-  geo.rotateY(Math.PI / 2); // length axis -> z, front -> -z
-  return new THREE.Mesh(geo, material);
+/** Flat-shaded copy of a geometry, for the sharp, faceted look. */
+const flat = (geometry) => {
+  const g = geometry.toNonIndexed();
+  g.computeVertexNormals();
+  return g;
 };
 
+/** Extrudes a side-profile polygon (x = length, +x is the front) across `width`. Forward ends up at -z. */
+function profileMesh(points, width, material) {
+  const shape = new THREE.Shape();
+  points.forEach(([x, y], i) => (i ? shape.lineTo(x, y) : shape.moveTo(x, y)));
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: width, bevelEnabled: false });
+  geo.translate(0, 0, -width / 2);
+  geo.rotateY(Math.PI / 2);
+  return new THREE.Mesh(flat(geo), material);
+}
+
 /**
- * The hero car: an original low teardrop-canopy electric hypercar.
- * Forward is -z. Origin sits at the wheel contact patch (y = 0).
+ * The hero car: an original angular electric hypercar. Silver wedge body over a black sill, upward-opening
+ * doors, a tall swan-neck wing with a light strip, a full-width tail light, four thruster nozzles and
+ * five-spoke wheels. Forward is -z; the origin sits at the wheel contact patch (y = 0).
  */
 export function createHeroCar(envMap = null) {
   const group = new THREE.Group();
   group.name = 'heroCar';
   group.userData = { modelType: 'hero', style: 'scifi' };
 
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: LIVERIES[0].body,
-    metalness: 0.65,
-    roughness: 0.28,
-    envMap,
-    envMapIntensity: 1.1,
-  });
-  const glassMat = new THREE.MeshStandardMaterial({
-    color: 0x05070d,
-    metalness: 0.95,
-    roughness: 0.08,
-    envMap,
-    envMapIntensity: 1.6,
-  });
-  const accentMat = new THREE.MeshStandardMaterial({
-    color: LIVERIES[0].accent,
-    metalness: 0.8,
-    roughness: 0.3,
-    envMap,
-  });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x0b0c10, metalness: 0.3, roughness: 0.7 });
+  const bodyMat = new THREE.MeshStandardMaterial({ color: LIVERIES[0].body, metalness: 0.55, roughness: 0.34, envMap, envMapIntensity: 1.1 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x06080e, metalness: 0.95, roughness: 0.08, envMap, envMapIntensity: 1.6 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: LIVERIES[0].accent, metalness: 0.85, roughness: 0.28, envMap });
+  const carbonMat = new THREE.MeshStandardMaterial({ color: 0x0d0f14, metalness: 0.35, roughness: 0.55 });
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x24272e, metalness: 0.7, roughness: 0.4, envMap });
   const glowMat = new THREE.MeshBasicMaterial({ color: LIVERIES[0].glow });
-  const headMat = new THREE.MeshBasicMaterial({ color: 0xeaffff });
+  const headMat = new THREE.MeshBasicMaterial({ color: 0xf2fbff });
   const tailMat = new THREE.MeshBasicMaterial({ color: 0xff2a3a });
 
-  // lower body: low wedge with a pronounced rear
-  const bodyShape = new THREE.Shape();
-  bodyShape.moveTo(-2.2, 0.3);
-  bodyShape.lineTo(2.05, 0.3);
-  bodyShape.quadraticCurveTo(2.3, 0.3, 2.3, 0.42);
-  bodyShape.bezierCurveTo(2.2, 0.55, 1.4, 0.62, 0.7, 0.72);
-  bodyShape.lineTo(-1.2, 0.8);
-  bodyShape.bezierCurveTo(-1.9, 0.86, -2.25, 0.82, -2.3, 0.62);
-  bodyShape.lineTo(-2.3, 0.4);
-  bodyShape.quadraticCurveTo(-2.3, 0.3, -2.2, 0.3);
-  const body = profileToMesh(bodyShape, 1.5, 0.18, bodyMat);
-  body.name = 'body';
-  group.add(body);
+  // upper shell: low nose, flat hood, and a deck that rises toward the tail
+  const shell = profileMesh(
+    [[-2.3, 0.4], [2.2, 0.4], [2.42, 0.5], [2.3, 0.6], [1.0, 0.74], [0.55, 0.8], [-1.0, 0.9], [-2.05, 0.96], [-2.3, 0.9]],
+    1.9,
+    bodyMat,
+  );
+  shell.name = 'body';
+  group.add(shell);
 
-  // teardrop canopy
-  const canopyShape = new THREE.Shape();
-  canopyShape.moveTo(0.8, 0.7);
-  canopyShape.bezierCurveTo(0.45, 1.0, 0.2, 1.17, -0.2, 1.17);
-  canopyShape.bezierCurveTo(-0.9, 1.17, -1.3, 0.97, -1.6, 0.78);
-  canopyShape.lineTo(0.8, 0.7);
-  const canopy = profileToMesh(canopyShape, 1.0, 0.14, glassMat);
+  // dark greenhouse with a raked windscreen, topped by a thin body-coloured roof
+  const canopy = profileMesh([[0.78, 0.74], [0.12, 1.14], [-1.0, 1.09], [-1.7, 0.92], [-1.7, 0.8]], 1.55, glassMat);
   canopy.name = 'canopy';
   group.add(canopy);
+  const roof = profileMesh([[0.1, 1.145], [-1.0, 1.095], [-1.0, 1.06], [0.1, 1.11]], 1.5, bodyMat);
+  roof.name = 'roof';
+  group.add(roof);
 
-  // copper side blades
+  // black sill, front splitter, rear diffuser
+  const sill = new THREE.Mesh(new THREE.BoxGeometry(1.98, 0.16, 4.5), carbonMat);
+  sill.position.set(0, 0.32, 0);
+  group.add(sill);
+  const splitter = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.04, 0.55), carbonMat);
+  splitter.position.set(0, 0.29, -2.35);
+  group.add(splitter);
+  const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.3, 0.4), carbonMat);
+  diffuser.position.set(0, 0.45, 2.3);
+  group.add(diffuser);
+
+  // upward-opening doors: panels hinged at the roof line, swung up by setDoors()
+  const doors = [];
   for (const s of [-1, 1]) {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 2.4), accentMat);
-    blade.position.set(s * 0.95, 0.52, 0.15);
-    blade.name = s < 0 ? 'bladeL' : 'bladeR';
-    group.add(blade);
+    const hinge = new THREE.Group();
+    hinge.name = s < 0 ? 'doorL' : 'doorR';
+    hinge.position.set(s * 0.955, 0.86, -0.15);
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.5, 1.55), bodyMat);
+    panel.position.y = -0.27;
+    hinge.add(panel);
+    group.add(hinge);
+    doors.push(hinge);
   }
 
-  // vertical blade headlights + front strip
+  // gold side pegs, like small cold-gas thrusters on the sill
   for (const s of [-1, 1]) {
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.2, 0.06), headMat);
-    head.position.set(s * 0.72, 0.5, -2.46);
-    head.rotation.x = -0.25;
+    for (const z of [-0.6, 0.55]) {
+      const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.14, 8), accentMat);
+      peg.position.set(s * 1.02, 0.23, z);
+      group.add(peg);
+    }
+  }
+
+  // nose: slim headlights and a full-width light strip
+  for (const s of [-1, 1]) {
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.05), headMat);
+    head.position.set(s * 0.62, 0.57, -2.4);
+    head.rotation.z = s * 0.08;
     head.name = s < 0 ? 'headlightL' : 'headlightR';
     group.add(head);
   }
-  const strip = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.03, 0.04), glowMat);
-  strip.position.set(0, 0.4, -2.5);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.025, 0.04), glowMat);
+  strip.position.set(0, 0.45, -2.42);
   strip.name = 'frontStrip';
   group.add(strip);
 
-  // triple-bar taillight
+  // tail: two full-width red bars
   const tails = new THREE.Group();
   tails.name = 'taillights';
-  for (let i = 0; i < 3; i++) {
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(1.45 - i * 0.12, 0.04, 0.05), tailMat);
-    bar.position.set(0, 0.66 - i * 0.075, 2.5);
+  for (const [w, y] of [[1.7, 0.82], [1.45, 0.72]]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, 0.045, 0.04), tailMat);
+    bar.position.set(0, y, 2.34);
     tails.add(bar);
   }
   group.add(tails);
 
-  // rear diffuser + active wing blade
-  const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 0.3), darkMat);
-  diffuser.position.set(0, 0.32, 2.45);
-  group.add(diffuser);
-  const wing = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.04, 0.38), accentMat);
-  wing.position.set(0, 0.93, 2.28);
-  wing.name = 'wing';
-  group.add(wing);
+  // tall swan-neck wing with end plates and a red light strip
+  const wingGroup = new THREE.Group();
+  wingGroup.name = 'wing';
+  const plane = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.05, 0.58), carbonMat);
+  plane.position.set(0, 1.26, 2.15);
+  plane.rotation.x = 0.1;
+  wingGroup.add(plane);
   for (const s of [-1, 1]) {
-    const strut = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.2, 0.06), darkMat);
-    strut.position.set(s * 0.45, 0.83, 2.28);
-    group.add(strut);
+    const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.36, 0.14), carbonMat);
+    pylon.position.set(s * 0.5, 1.1, 2.0);
+    wingGroup.add(pylon);
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.24, 0.64), carbonMat);
+    plate.position.set(s * 0.97, 1.22, 2.15);
+    wingGroup.add(plate);
   }
+  const wingLight = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.035, 0.04), tailMat);
+  wingLight.position.set(0, 1.235, 2.44);
+  wingGroup.add(wingLight);
+  group.add(wingGroup);
 
-  // wheels
-  const wheelGeo = new THREE.CylinderGeometry(0.37, 0.37, 0.3, 18);
-  wheelGeo.rotateZ(Math.PI / 2);
-  const rimGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.32, 8);
-  rimGeo.rotateZ(Math.PI / 2);
+  // wheels: dark tyre, brake disc, five star spokes and a gold hub
+  const tyreGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.32, 22);
+  tyreGeo.rotateZ(Math.PI / 2);
+  const discGeo = new THREE.CylinderGeometry(0.33, 0.33, 0.33, 18);
+  discGeo.rotateZ(Math.PI / 2);
+  const hubGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.36, 10);
+  hubGeo.rotateZ(Math.PI / 2);
+  const spokeGeo = new THREE.BoxGeometry(0.06, 0.34, 0.075);
+  spokeGeo.translate(0, 0.17, 0);
   const wheels = [];
-  for (const [sx, sz, name] of [
-    [-1, -1.45, 'wheelFL'],
-    [1, -1.45, 'wheelFR'],
-    [-1, 1.4, 'wheelRL'],
-    [1, 1.4, 'wheelRR'],
-  ]) {
+  for (const [sx, sz, name] of [[-1, -1.5, 'wheelFL'], [1, -1.5, 'wheelFR'], [-1, 1.45, 'wheelRL'], [1, 1.45, 'wheelRR']]) {
     const w = new THREE.Group();
     w.name = name;
-    w.add(new THREE.Mesh(wheelGeo, darkMat));
-    w.add(new THREE.Mesh(rimGeo, accentMat));
-    w.position.set(sx * 0.9, 0.37, sz);
+    const spin = new THREE.Group(); // only this part rotates when driving
+    spin.add(new THREE.Mesh(tyreGeo, carbonMat));
+    spin.add(new THREE.Mesh(discGeo, wheelMat));
+    for (let i = 0; i < 5; i++) {
+      const spoke = new THREE.Mesh(spokeGeo, wheelMat);
+      spoke.position.x = sx * 0.165;
+      spoke.rotation.x = (i / 5) * Math.PI * 2;
+      spin.add(spoke);
+    }
+    const hub = new THREE.Mesh(hubGeo, accentMat);
+    spin.add(hub);
+    w.add(spin);
+    w.userData.spin = spin;
+    w.position.set(sx * 0.93, 0.4, sz);
     group.add(w);
     wheels.push(w);
   }
 
-  // thruster nozzles + flames
-  const nozzleGeo = new THREE.ConeGeometry(0.13, 0.32, 12, 1, true);
-  nozzleGeo.rotateX(-Math.PI / 2); // opens toward +z
-  const flameGeo = new THREE.ConeGeometry(0.11, 1.6, 10, 1, true);
-  flameGeo.rotateX(Math.PI / 2); // wide base at the nozzle, tip trailing behind the car (+z)
-  flameGeo.translate(0, 0, 0.8);
+  // four thruster nozzles on the diffuser, each with a flame
+  const nozzleGeo = new THREE.CylinderGeometry(0.075, 0.095, 0.2, 12, 1, true);
+  nozzleGeo.rotateX(Math.PI / 2);
+  const ringGeo = new THREE.TorusGeometry(0.085, 0.014, 6, 14);
+  const flameGeo = new THREE.ConeGeometry(0.075, 1.2, 10, 1, true);
+  flameGeo.rotateX(Math.PI / 2); // wide base at the nozzle, tip trailing behind (+z)
+  flameGeo.translate(0, 0, 0.6);
   const flameMat = new THREE.MeshBasicMaterial({
     color: LIVERIES[0].glow,
     transparent: true,
-    opacity: 0.0,
+    opacity: 0,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
   const flames = [];
-  for (const s of [-1, 1]) {
-    const nozzle = new THREE.Mesh(nozzleGeo, accentMat);
-    nozzle.position.set(s * 0.5, 0.5, 2.38);
-    nozzle.name = s < 0 ? 'nozzleL' : 'nozzleR';
+  [-0.66, -0.22, 0.22, 0.66].forEach((x, i) => {
+    const nozzle = new THREE.Mesh(nozzleGeo, carbonMat);
+    nozzle.position.set(x, 0.42, 2.46);
+    nozzle.name = `nozzle${i}`;
     group.add(nozzle);
+    const ring = new THREE.Mesh(ringGeo, glowMat);
+    ring.position.set(x, 0.42, 2.57);
+    group.add(ring);
     const flame = new THREE.Mesh(flameGeo, flameMat);
-    flame.position.set(s * 0.5, 0.5, 2.55);
-    flame.name = s < 0 ? 'flameL' : 'flameR';
+    flame.position.set(x, 0.42, 2.56);
+    flame.name = `flame${i}`;
     flame.scale.set(1, 1, 0.01);
     group.add(flame);
     flames.push(flame);
-  }
+  });
 
-  // underglow + contact shadow blob
+  // soft underglow and a contact shadow that the view keeps on the road
   const glow = new THREE.Mesh(
     new THREE.PlaneGeometry(3.6, 6.8),
-    new THREE.MeshBasicMaterial({
-      map: softBlobTexture(),
-      color: LIVERIES[0].glow,
-      transparent: true,
-      opacity: 0.28,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    }),
+    new THREE.MeshBasicMaterial({ map: softBlobTexture(), color: LIVERIES[0].glow, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false }),
   );
   glow.rotation.x = -Math.PI / 2;
   glow.position.y = 0.04;
@@ -265,8 +286,16 @@ export function createHeroCar(envMap = null) {
   shadow.name = 'shadow';
   group.add(shadow);
 
-  group.userData.parts = { bodyMat, accentMat, glowMat, flameMat, glow, shadow, wheels, flames, tails };
+  group.userData.parts = { bodyMat, accentMat, glowMat, flameMat, glow, shadow, wheels, flames, doors, tails };
   return group;
+}
+
+/** Swings both doors up (1) or closes them (0). */
+export function setDoors(car, amount) {
+  const [left, right] = car.userData.parts.doors;
+  const a = amount * 1.2;
+  left.rotation.z = -a;
+  right.rotation.z = a;
 }
 
 export function applyLivery(car, livery) {

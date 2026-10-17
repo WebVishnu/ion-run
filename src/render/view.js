@@ -8,6 +8,7 @@ import {
   createHeroCar,
   createPadMesh,
   createRampMesh,
+  setDoors,
 } from './models.js';
 
 const ROAD_W = LANES * LANE_W;
@@ -406,6 +407,8 @@ export class GameView {
   // ------------------------------------------------------------ palette
   /** Everything a new run must start clean: camera, effects, and the first district palette. */
   resetForRun() {
+    this.doorTarget = 0;
+    this.doorOpen = 0;
     this.camBlend = 0;
     this.camRoll = 0;
     this.fovKick = 0;
@@ -536,7 +539,11 @@ export class GameView {
     hero.rotation.set(pose.pitch, lean * 0.6, pose.roll + lean);
 
     const spin = (state.speed * dt) / 0.37;
-    for (const w of hero.userData.parts.wheels) w.children[0].rotation.x += spin;
+    for (const w of hero.userData.parts.wheels) w.userData.spin.rotation.x += spin;
+
+    // doors swing up in the showcase (menu and garage) and close for driving
+    this.doorOpen = (this.doorOpen ?? 0) + ((this.doorTarget ?? 0) - (this.doorOpen ?? 0)) * Math.min(1, dt * 5);
+    setDoors(hero, this.doorOpen);
 
     // thruster flames when airborne or transiting
     const burning = p.air || !!p.transit;
@@ -871,6 +878,7 @@ export class GameView {
     });
     fake.dist = this.idleDist;
     fake.t = t;
+    this.doorTarget = 1; // doors up while the car is on show
     fake.district = Math.floor(this.idleDist / 900) % PALETTES.length;
     if (this.paletteIndex !== fake.district) {
       this.paletteIndex = fake.district;

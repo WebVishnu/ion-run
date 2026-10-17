@@ -120,7 +120,7 @@ test.describe('Ion Run', () => {
     await game.open();
     await page.getByRole('button', { name: 'Garage' }).click();
     await expect(page.getByRole('heading', { name: 'Garage' })).toBeVisible();
-    await expect(page.getByRole('option', { name: /Midnight Copper/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('option', { name: /Glacier Silver/ })).toHaveAttribute('aria-selected', 'true');
     await page.getByRole('option', { name: /Aurora Teal/ }).click();
     await expect(page.locator('#garage-msg')).toContainText('Not enough coins');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
