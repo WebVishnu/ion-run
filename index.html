@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#070b18" />
+    <meta name="description" content="Ion Run is a free endless driving game. Thread an original electric hypercar through traffic, hop, flip and drive upside down. Fictional vehicle, not affiliated with any manufacturer." />
+    <title>Ion Run</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23070b18'/%3E%3Cpath d='M18 4 8 18h7l-2 10 11-15h-7z' fill='%2335e0ff'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene" aria-label="Game view"></canvas>
+      <div id="flash" aria-hidden="true"></div>
+
+      <!-- Heads-up display -->
+      <div id="hud" hidden>
+        <div class="hud-top">
+          <div class="hud-score">
+            <span id="hud-score" class="num">0</span>
+            <span id="hud-mult" class="chip" hidden>x1</span>
+          </div>
+          <div class="hud-streak" id="hud-streak-wrap" aria-hidden="true">
+            <div class="streak-track"><div id="hud-streak-fill"></div></div>
+            <span id="hud-streak-text"></span>
+          </div>
+          <button id="btn-pause" class="icon-btn" data-ui aria-label="Pause">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor" /></svg>
+          </button>
+        </div>
+
+        <div class="hud-cluster">
+          <div class="gauge battery" id="hud-battery">
+            <div class="gauge-head"><span>Battery</span><span id="hud-battery-val" class="num">100</span></div>
+            <div class="bar"><div id="hud-battery-fill"></div></div>
+          </div>
+          <div class="speed">
+            <span id="hud-speed" class="num">0</span>
+            <span class="unit">km/h</span>
+          </div>
+          <div class="gauge thrust">
+            <div class="gauge-head"><span>Thruster</span></div>
+            <div class="pips" id="hud-pips" aria-label="Thruster charge">
+              <span class="pip"></span><span class="pip"></span><span class="pip"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="gauge suction" id="hud-suction" hidden>
+          <div class="gauge-head"><span>Suction</span></div>
+          <div class="bar"><div id="hud-suction-fill"></div></div>
+        </div>
+
+        <div id="hud-popups" aria-hidden="true"></div>
+        <div id="hud-banner" class="banner" hidden></div>
+        <div id="hud-hint" class="hint" hidden></div>
+
+        <div id="touch-controls" hidden>
+          <button id="touch-brake" class="touch-btn small" data-ui aria-label="Brake">Brake</button>
+          <button id="touch-thruster" class="touch-btn" data-ui aria-label="Thruster hop. Hold to grab the ceiling.">
+            <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M13 2 5 14h6l-1 8 9-13h-6z" fill="currentColor" /></svg>
+            <span>Hop</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading -->
+      <section id="screen-loading" class="screen center" aria-live="polite">
+        <div class="loader">
+          <div class="wordmark">Ion Run</div>
+          <div class="load-bar"><div id="load-fill"></div></div>
+          <p id="load-text" class="dim">Warming up the motor</p>
+        </div>
+      </section>
+
+      <!-- Menu -->
+      <section id="screen-menu" class="screen side" hidden aria-labelledby="menu-title">
+        <div class="panel menu-panel">
+          <h1 id="menu-title" class="wordmark">Ion Run</h1>
+          <p class="tagline">Thread the traffic. Hop, flip, and drive on the ceiling.</p>
+          <div class="stat-row">
+            <div><span class="dim">Best</span><strong id="menu-best" class="num">0</strong></div>
+            <div><span class="dim">Coins</span><strong id="menu-coins" class="num">0</strong></div>
+          </div>
+          <button id="btn-play" class="btn primary" autofocus>Play</button>
+          <button id="btn-daily" class="btn secondary">
+            <span>Daily run</span><small id="daily-sub" class="dim"></small>
+          </button>
+          <div class="btn-grid">
+            <button id="btn-garage" class="btn ghost">Garage</button>
+            <button id="btn-goals" class="btn ghost">Goals</button>
+            <button id="btn-settings" class="btn ghost">Settings</button>
+          </div>
+          <details class="howto">
+            <summary>How to play</summary>
+            <ul>
+              <li>Change lane with the arrow keys, A and D, or swipe. The left lane has oncoming traffic and pays double.</li>
+              <li>Pass cars closely to build a streak. Faster and closer scores more.</li>
+              <li>Drive over green charge pads. When the battery hits zero, the run ends.</li>
+              <li>Space fires the thruster hop. In the air, left and right roll, up and down flip. Land level for a bonus.</li>
+              <li>In a tunnel, hold Shift (or hold the Hop button) to stick to the ceiling and drive upside down.</li>
+            </ul>
+          </details>
+          <p class="legal dim">Ion Run is a fictional game. The car is an original design and is not affiliated with any vehicle manufacturer.</p>
+        </div>
+      </section>
+
+      <!-- Pause -->
+      <section id="screen-pause" class="screen center" hidden role="dialog" aria-modal="true" aria-labelledby="pause-title">
+        <div class="panel narrow">
+          <h2 id="pause-title">Paused</h2>
+          <button id="btn-resume" class="btn primary">Resume</button>
+          <button id="btn-restart" class="btn secondary">Restart run</button>
+          <button id="btn-pause-settings" class="btn ghost">Settings</button>
+          <button id="btn-quit" class="btn ghost">Quit to menu</button>
+        </div>
+      </section>
+
+      <!-- Game over -->
+      <section id="screen-over" class="screen center" hidden role="dialog" aria-modal="true" aria-labelledby="over-title">
+        <div class="panel over-panel">
+          <h2 id="over-title">Run over</h2>
+          <p id="over-reason" class="dim"></p>
+          <div class="over-score">
+            <span id="over-score" class="num">0</span>
+            <span id="over-best" class="chip" hidden>New best</span>
+          </div>
+          <dl class="breakdown" id="over-breakdown"></dl>
+          <div id="over-goals" class="goal-list"></div>
+          <div id="over-unlocks" class="unlock" hidden></div>
+          <div class="over-actions">
+            <button id="btn-retry" class="btn primary">Retry</button>
+            <button id="btn-over-menu" class="btn ghost">Menu</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Garage -->
+      <section id="screen-garage" class="screen side" hidden aria-labelledby="garage-title">
+        <div class="panel menu-panel">
+          <div class="panel-head">
+            <h2 id="garage-title">Garage</h2>
+            <span class="chip coin">Coins <b id="garage-coins" class="num">0</b></span>
+          </div>
+          <div id="livery-list" class="livery-list" role="listbox" aria-label="Liveries"></div>
+          <p id="garage-msg" class="dim" role="status"></p>
+          <button class="btn ghost back" data-back>Back</button>
+        </div>
+      </section>
+
+      <!-- Goals and leaderboard -->
+      <section id="screen-goals" class="screen side" hidden aria-labelledby="goals-title">
+        <div class="panel menu-panel">
+          <div class="panel-head"><h2 id="goals-title">Goals</h2></div>
+          <div id="goal-list" class="goal-list"></div>
+          <div class="panel-head sub"><h3>Leaderboard</h3>
+            <div class="seg" role="tablist">
+              <button id="tab-today" role="tab" aria-selected="true">Today</button>
+              <button id="tab-all" role="tab" aria-selected="false">All time</button>
+            </div>
+          </div>
+          <ol id="board" class="board"></ol>
+          <p class="dim small">Scores are saved on this device only.</p>
+          <div id="milestones" class="goal-list"></div>
+          <button class="btn ghost back" data-back>Back</button>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section id="screen-settings" class="screen side" hidden aria-labelledby="settings-title">
+        <div class="panel menu-panel">
+          <div class="panel-head"><h2 id="settings-title">Settings</h2></div>
+          <fieldset>
+            <legend>Sound</legend>
+            <label class="row">Master <input id="set-master" type="range" min="0" max="1" step="0.05" /></label>
+            <label class="row">Effects <input id="set-sfx" type="range" min="0" max="1" step="0.05" /></label>
+            <label class="row">Music <input id="set-music" type="range" min="0" max="1" step="0.05" /></label>
+            <label class="row check"><input id="set-muted" type="checkbox" /> Mute everything</label>
+          </fieldset>
+          <fieldset>
+            <legend>Comfort</legend>
+            <label class="row check"><input id="set-reduced" type="checkbox" /> Reduce motion (no shake, speed lines, camera roll or flashes)</label>
+            <label class="row check"><input id="set-auto" type="checkbox" /> Auto-trick (hold Hop to roll and land by itself)</label>
+            <label class="row check"><input id="set-tilt" type="checkbox" /> Tilt to steer (phones)</label>
+            <label class="row">Game speed
+              <select id="set-speed"><option value="0.8">Relaxed</option><option value="1">Normal</option><option value="1.2">Fast</option></select>
+            </label>
+            <label class="row">Difficulty
+              <select id="set-difficulty"><option value="chill">Chill</option><option value="normal">Normal</option><option value="hard">Hard</option></select>
+            </label>
+            <label class="row">Graphics
+              <select id="set-quality"><option value="auto">Auto</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Keyboard controls</legend>
+            <div id="bindings" class="bindings"></div>
+            <button id="btn-reset-keys" class="btn ghost small">Reset keys</button>
+          </fieldset>
+          <button id="btn-reset-save" class="btn ghost danger">Erase saved progress</button>
+          <button class="btn ghost back" data-back>Back</button>
+        </div>
+      </section>
+
+      <!-- No WebGL -->
+      <section id="screen-nogl" class="screen center" hidden>
+        <div class="panel narrow">
+          <h2>This browser can't run the 3D view</h2>
+          <p class="dim">Ion Run needs WebGL. Try a recent version of Chrome, Edge, Firefox or Safari, and make sure hardware acceleration is on.</p>
+        </div>
+      </section>
+
+      <div id="toast" role="status" aria-live="polite"></div>
+      <div id="sr-live" class="sr-only" aria-live="assertive"></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
