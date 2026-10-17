@@ -42,23 +42,61 @@ function box(w, h, l, x, y, z, color) {
 }
 
 // ---------------------------------------------------------------- environment map
+/**
+ * Image-based lighting for a night highway, built once from a tiny scene: a dusk gradient dome plus bright
+ * strip "softboxes" (street lamps and tunnel lights). The car's clearcoat then reflects warm horizon light
+ * and long lamp streaks instead of a generic studio.
+ */
 export function createEnvironment(renderer) {
   try {
-    // Lazy import keeps the main bundle smaller if reflections are disabled.
-    return import('three/examples/jsm/environments/RoomEnvironment.js').then(({ RoomEnvironment }) => {
-      const pmrem = new THREE.PMREMGenerator(renderer);
-      const tex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-      pmrem.dispose();
-      return tex;
-    });
+    const scene = new THREE.Scene();
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(50, 32, 16),
+      new THREE.ShaderMaterial({
+        side: THREE.BackSide,
+        depthWrite: false,
+        uniforms: {
+          top: { value: new THREE.Color(0x1a2a52) },
+          mid: { value: new THREE.Color(0x4a4870) },
+          horizon: { value: new THREE.Color(0xd49a82) },
+          ground: { value: new THREE.Color(0x10131c) },
+        },
+        vertexShader: 'varying float h; void main(){ h = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+        fragmentShader:
+          'uniform vec3 top; uniform vec3 mid; uniform vec3 horizon; uniform vec3 ground; varying float h;' +
+          'void main(){ vec3 c = h > 0.0 ? mix(horizon, mix(mid, top, smoothstep(0.15, 0.9, h)), smoothstep(0.0, 0.35, h)) : mix(horizon * 0.25, ground, smoothstep(0.0, -0.4, h)); gl_FragColor = vec4(c, 1.0); }',
+      }),
+    );
+    scene.add(dome);
+    const bright = (c, k) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(k) });
+    const strip = (w, h, d, x, y, z, mat) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      m.position.set(x, y, z);
+      scene.add(m);
+    };
+    // overhead light bars (long reflections along the roof and bonnet) and low side lamps
+    const warm = bright(0xfff0d8, 8);
+    const cool = bright(0xcfeaff, 9);
+    strip(3, 0.3, 26, 0, 18, 0, warm);
+    strip(2, 0.3, 20, -9, 14, -6, cool);
+    strip(2, 0.3, 20, 9, 14, 6, cool);
+    for (let i = 0; i < 6; i++) {
+      strip(0.6, 0.6, 0.6, -14, 5, -30 + i * 12, warm);
+      strip(0.6, 0.6, 0.6, 14, 5, -30 + i * 12, warm);
+    }
+    strip(10, 3, 0.5, 0, 4, -40, bright(0xff8a5c, 5)); // the sunset behind the horizon
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const tex = pmrem.fromScene(scene, 0.02).texture;
+    pmrem.dispose();
+    return Promise.resolve(tex);
   } catch {
     return Promise.resolve(null);
   }
 }
 
 let softTexture = null;
-/** A white radial falloff used for the underglow and the contact shadow (no hard rectangle edges). */
-function softBlobTexture() {
+/** A white radial falloff used for the underglow, contact shadow and lamp light pools (no hard edges). */
+export function softBlobTexture() {
   if (softTexture) return softTexture;
   const c = document.createElement('canvas');
   c.width = c.height = 128;
@@ -76,7 +114,7 @@ function softBlobTexture() {
 // ---------------------------------------------------------------- hero car
 /** Flat-shaded copy of a geometry, for the sharp, faceted look. */
 const flat = (geometry) => {
-  const g = geometry.toNonIndexed();
+  const g = geometry.index ? geometry.toNonIndexed() : geometry;
   g.computeVertexNormals();
   return g;
 };
@@ -102,14 +140,25 @@ export function createHeroCar(envMap = null) {
   group.name = 'heroCar';
   group.userData = { modelType: 'hero', style: 'scifi' };
 
-  const bodyMat = new THREE.MeshStandardMaterial({ color: LIVERIES[0].body, metalness: 0.55, roughness: 0.34, envMap, envMapIntensity: 1.1 });
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0x06080e, metalness: 0.95, roughness: 0.08, envMap, envMapIntensity: 1.6 });
-  const accentMat = new THREE.MeshStandardMaterial({ color: LIVERIES[0].accent, metalness: 0.85, roughness: 0.28, envMap });
-  const carbonMat = new THREE.MeshStandardMaterial({ color: 0x0d0f14, metalness: 0.35, roughness: 0.55 });
-  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x24272e, metalness: 0.7, roughness: 0.4, envMap });
-  const glowMat = new THREE.MeshBasicMaterial({ color: LIVERIES[0].glow });
-  const headMat = new THREE.MeshBasicMaterial({ color: 0xf2fbff });
-  const tailMat = new THREE.MeshBasicMaterial({ color: 0xff2a3a });
+  // car paint: a metallic base under a glossy clearcoat, so reflections have a sharp lacquer layer on top
+  const bodyMat = new THREE.MeshPhysicalMaterial({
+    color: LIVERIES[0].body,
+    metalness: 0.7,
+    roughness: 0.38,
+    clearcoat: 1,
+    clearcoatRoughness: 0.06,
+    envMap,
+    envMapIntensity: 1.25,
+  });
+  // dark tinted glass: very smooth, with its own clearcoat for the bright window reflections
+  const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x03050a, metalness: 0.0, roughness: 0.03, clearcoat: 1, clearcoatRoughness: 0.0, envMap, envMapIntensity: 1.8 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: LIVERIES[0].accent, metalness: 0.9, roughness: 0.25, envMap });
+  const carbonMat = new THREE.MeshStandardMaterial({ color: 0x0d0f14, metalness: 0.4, roughness: 0.5, envMap, envMapIntensity: 0.6 });
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2a2d34, metalness: 0.85, roughness: 0.32, envMap });
+  // lights are HDR (values above 1) so the bloom pass makes them glow
+  const glowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(LIVERIES[0].glow).multiplyScalar(2) });
+  const headMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xf2fbff).multiplyScalar(4) });
+  const tailMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff2a3a).multiplyScalar(3.2) });
 
   // upper shell: low nose, flat hood, and a deck that rises toward the tail
   const shell = profileMesh(
@@ -302,8 +351,8 @@ export function applyLivery(car, livery) {
   const { bodyMat, accentMat, glowMat, flameMat, glow } = car.userData.parts;
   bodyMat.color.setHex(livery.body);
   accentMat.color.setHex(livery.accent);
-  glowMat.color.setHex(livery.glow);
-  flameMat.color.setHex(livery.glow);
+  glowMat.color.setHex(livery.glow).multiplyScalar(2);
+  flameMat.color.setHex(livery.glow).multiplyScalar(1.6);
   glow.material.color.setHex(livery.glow);
 }
 
@@ -401,8 +450,22 @@ export function vehicleGeometry(type, colorIndex) {
   return geo;
 }
 
-/** Shared material for all traffic: vertex colours carry the livery. */
+/**
+ * Shared material for all traffic: vertex colours carry the livery. A small shader tweak makes the bright
+ * red tail lights and pale headlights self-lit (HDR), so they glow under the bloom pass at night.
+ */
 export const trafficMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+trafficMaterial.onBeforeCompile = (shader) => {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <emissivemap_fragment>',
+    `#include <emissivemap_fragment>
+    #ifdef USE_COLOR
+      float tailMask = step(0.9, vColor.r) * step(vColor.g, 0.3) * step(vColor.b, 0.3);
+      float headMask = step(0.9, min(vColor.r, vColor.g)) * step(0.55, vColor.b);
+      totalEmissiveRadiance += vColor * (tailMask * 3.0 + headMask * 3.5);
+    #endif`,
+  );
+};
 
 export class VehiclePool {
   constructor(scene) {
@@ -421,6 +484,7 @@ export class VehiclePool {
       mesh.matrixAutoUpdate = true;
     }
     mesh.visible = true;
+    mesh.castShadow = true;
     this.scene.add(mesh);
     this.active.set(e.id, mesh);
     return mesh;
@@ -447,7 +511,7 @@ export function createPadMesh() {
   g.name = 'chargePad';
   const ring = new THREE.Mesh(
     new THREE.TorusGeometry(1.1, 0.12, 8, 28),
-    new THREE.MeshBasicMaterial({ color: 0x35ffb0 }),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(0x35ffb0).multiplyScalar(2.2) }),
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.12;

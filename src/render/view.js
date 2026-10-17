@@ -1,4 +1,9 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { CEIL_Y, LANES, LANE_W, laneX } from '../config.js';
 import {
   LIVERIES,
@@ -9,6 +14,7 @@ import {
   createPadMesh,
   createRampMesh,
   setDoors,
+  softBlobTexture,
 } from './models.js';
 
 const ROAD_W = LANES * LANE_W;
@@ -17,14 +23,14 @@ const ROAD_LEN = 620;
 const TAU = Math.PI * 2;
 
 const PALETTES = [
-  { name: 'Coastal Dusk', top: 0x1b1450, horizon: 0xff8a5c, ground: 0x1d2330, road: 0x2a2d36, lamp: 0xffd9a0, accent: 0xff6a8c, bld: 0x3a2f66, emis: 0x1a0a28, fogFar: 330, stars: 0.25, rain: 0, sun: 0xffc27a, sunY: 14, hemiSky: 0xffa57a, hemiGround: 0x2a2040, dir: 0xffa070, bldH: 1.0 },
-  { name: 'Neon City', top: 0x06041a, horizon: 0x4b1a7a, ground: 0x0a0c16, road: 0x1c1e2a, lamp: 0x6ae4ff, accent: 0xff2bd6, bld: 0x14163a, emis: 0x3a0a6a, fogFar: 300, stars: 0.5, rain: 0, sun: 0xff5fd0, sunY: 26, hemiSky: 0x7a4cff, hemiGround: 0x10102a, dir: 0x9a7aff, bldH: 1.9 },
-  { name: 'Desert Night', top: 0x040818, horizon: 0x3b2a4f, ground: 0x3a2c25, road: 0x24262c, lamp: 0xffb86b, accent: 0xffb86b, bld: 0x5a3f33, emis: 0x000000, fogFar: 340, stars: 1, rain: 0, sun: 0xdfe9ff, sunY: 34, hemiSky: 0x6a7cc0, hemiGround: 0x2a1f1a, dir: 0xa8b8ff, bldH: 0.55 },
-  { name: 'Rain Storm', top: 0x0d1218, horizon: 0x3d4a58, ground: 0x10161c, road: 0x1b2027, lamp: 0xbfe6ff, accent: 0x7fd0ff, bld: 0x1d2733, emis: 0x061018, fogFar: 210, stars: 0, rain: 1, sun: 0x5c6c7c, sunY: 22, hemiSky: 0x6a8aa8, hemiGround: 0x10161c, dir: 0x8aa8c8, bldH: 1.3 },
-  { name: 'Mountain Dawn', top: 0x2a5080, horizon: 0xffd1a1, ground: 0x22332e, road: 0x2a2f33, lamp: 0xfff0d0, accent: 0xffe08a, bld: 0x3a4f4a, emis: 0x000000, fogFar: 360, stars: 0.1, rain: 0, sun: 0xfff2c0, sunY: 16, hemiSky: 0xffe0b8, hemiGround: 0x22332e, dir: 0xfff0d0, bldH: 0.9 },
+  { name: 'Coastal Dusk', top: 0x1b1450, horizon: 0xff8a5c, ground: 0x1d2330, road: 0x2a2d36, lamp: 0xffd9a0, accent: 0xff6a8c, bld: 0x3a2f66, emis: 0x1a0a28, fogFar: 330, stars: 0.25, rain: 0, sun: 0xffc27a, sunY: 14, hemiSky: 0xffa57a, hemiGround: 0x2a2040, dir: 0xffa070, bldH: 1.0, wet: 0.12, win: 0.55, winA: 0xffd9a0, winB: 0xff9a6a },
+  { name: 'Neon City', top: 0x06041a, horizon: 0x4b1a7a, ground: 0x0a0c16, road: 0x1c1e2a, lamp: 0x6ae4ff, accent: 0xff2bd6, bld: 0x14163a, emis: 0x3a0a6a, fogFar: 300, stars: 0.5, rain: 0, sun: 0xff5fd0, sunY: 26, hemiSky: 0x7a4cff, hemiGround: 0x10102a, dir: 0x9a7aff, bldH: 1.9, wet: 0.4, win: 1.0, winA: 0x6ae4ff, winB: 0xff2bd6 },
+  { name: 'Desert Night', top: 0x040818, horizon: 0x3b2a4f, ground: 0x3a2c25, road: 0x24262c, lamp: 0xffb86b, accent: 0xffb86b, bld: 0x5a3f33, emis: 0x000000, fogFar: 340, stars: 1, rain: 0, sun: 0xdfe9ff, sunY: 34, hemiSky: 0x6a7cc0, hemiGround: 0x2a1f1a, dir: 0xa8b8ff, bldH: 0.55, wet: 0.0, win: 0.0, winA: 0xffb86b, winB: 0xffb86b },
+  { name: 'Rain Storm', top: 0x0d1218, horizon: 0x3d4a58, ground: 0x10161c, road: 0x1b2027, lamp: 0xbfe6ff, accent: 0x7fd0ff, bld: 0x1d2733, emis: 0x061018, fogFar: 210, stars: 0, rain: 1, sun: 0x5c6c7c, sunY: 22, hemiSky: 0x6a8aa8, hemiGround: 0x10161c, dir: 0x8aa8c8, bldH: 1.3, wet: 1.0, win: 0.75, winA: 0xbfe6ff, winB: 0xffe2a8 },
+  { name: 'Mountain Dawn', top: 0x2a5080, horizon: 0xffd1a1, ground: 0x22332e, road: 0x2a2f33, lamp: 0xfff0d0, accent: 0xffe08a, bld: 0x3a4f4a, emis: 0x000000, fogFar: 360, stars: 0.1, rain: 0, sun: 0xfff2c0, sunY: 16, hemiSky: 0xffe0b8, hemiGround: 0x22332e, dir: 0xfff0d0, bldH: 0.9, wet: 0.05, win: 0.0, winA: 0xfff0d0, winB: 0xfff0d0 },
 ];
 
-const PALETTE_KEYS = ['top', 'horizon', 'ground', 'road', 'lamp', 'accent', 'bld', 'emis', 'sun', 'hemiSky', 'hemiGround', 'dir'];
+const PALETTE_KEYS = ['top', 'horizon', 'ground', 'road', 'lamp', 'accent', 'bld', 'emis', 'sun', 'hemiSky', 'hemiGround', 'dir', 'winA', 'winB'];
 // built once so the per-frame palette blend allocates nothing
 const PALETTE_COLORS = PALETTES.map((p) => Object.fromEntries(PALETTE_KEYS.map((k) => [k, new THREE.Color(p[k])])));
 
@@ -40,12 +46,33 @@ function makeRoadTexture() {
   g.fillStyle = '#34373f';
   g.fillRect(0, 0, 256, 256);
   // asphalt speckle
-  for (let i = 0; i < 1400; i++) {
-    const v = 40 + Math.floor(Math.random() * 40);
+  for (let i = 0; i < 2200; i++) {
+    const v = 36 + Math.floor(Math.random() * 46);
     g.fillStyle = `rgba(${v},${v},${v + 4},0.5)`;
-    g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+    g.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 2, 1 + Math.random() * 2);
   }
   const lane = 256 / LANES;
+  // polished tyre tracks in each lane, and a few oil stains, so the surface is not one flat tone
+  for (let i = 0; i < LANES; i++) {
+    for (const off of [-0.27, 0.27]) {
+      const x = lane * (i + 0.5) + off * lane;
+      const grad = g.createLinearGradient(x - 9, 0, x + 9, 0);
+      grad.addColorStop(0, 'rgba(10,10,14,0)');
+      grad.addColorStop(0.5, 'rgba(10,10,14,0.3)');
+      grad.addColorStop(1, 'rgba(10,10,14,0)');
+      g.fillStyle = grad;
+      g.fillRect(x - 9, 0, 18, 256);
+    }
+  }
+  for (let i = 0; i < 9; i++) {
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const rg = g.createRadialGradient(x, y, 1, x, y, 10 + Math.random() * 10);
+    rg.addColorStop(0, 'rgba(8,8,12,0.4)');
+    rg.addColorStop(1, 'rgba(8,8,12,0)');
+    g.fillStyle = rg;
+    g.fillRect(x - 24, y - 24, 48, 48);
+  }
   // double yellow between oncoming lane and the rest
   g.fillStyle = '#f5b82e';
   g.fillRect(lane - 5, 0, 3, 256);
@@ -63,6 +90,90 @@ function makeRoadTexture() {
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+
+/**
+ * Windows for the skyline, drawn procedurally in the fragment shader on the building's own local coordinates
+ * (so they stay glued to the buildings while the world scrolls). `aSeed` makes every building different.
+ * This extends the stock Lambert material instead of replacing it, so fog and lighting keep working.
+ */
+function patchBuildingMaterial(material, uniforms) {
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        attribute float aSeed;
+        varying vec3 vLocal;
+        varying vec3 vLocalN;
+        flat varying float vSeed;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vec3 bs = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+        vLocal = vec3(position.x * bs.x, position.y * bs.y + bs.y * 0.5, position.z * bs.z);
+        vLocalN = normal;
+        vSeed = aSeed;`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uWin;
+        uniform vec3 uWinA;
+        uniform vec3 uWinB;
+        varying vec3 vLocal;
+        varying vec3 vLocalN;
+        flat varying float vSeed;
+        float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        if (uWin > 0.001 && abs(vLocalN.y) < 0.5) {
+          vec2 uv = abs(vLocalN.x) > 0.5 ? vec2(vLocal.z, vLocal.y) : vec2(vLocal.x, vLocal.y);
+          vec2 g = uv / vec2(2.4, 3.2);
+          vec2 cell = floor(g + 0.0001);
+          vec2 f = fract(g);
+          float sd = floor(vSeed * 97.0 + 0.5); // quantised, so tiny interpolation error can never change the hash
+          float pane = step(0.18, f.x) * step(f.x, 0.82) * step(0.22, f.y) * step(f.y, 0.78);
+          float lit = step(0.5, h21(cell + sd * 7.31));
+          vec3 tint = mix(uWinA, uWinB, h21(cell * 1.7 + sd));
+          totalEmissiveRadiance += tint * pane * lit * uWin * (0.8 + 1.4 * h21(cell + 7.0 + sd));
+        }`,
+      );
+  };
+}
+
+/** Subtle lens look: speed-scaled chromatic aberration, a soft vignette and a whisper of film grain. */
+const FinalShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uAberr: { value: 0.003 },
+    uVig: { value: 0.45 },
+    uGrain: { value: 0.01 },
+    uTime: { value: 0 },
+  },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float uAberr;
+    uniform float uVig;
+    uniform float uGrain;
+    uniform float uTime;
+    varying vec2 vUv;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
+    void main() {
+      vec2 d = vUv - 0.5;
+      float r = length(d);
+      vec2 off = d * uAberr * r;
+      vec3 col = vec3(texture2D(tDiffuse, vUv - off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv + off).b);
+      col *= 1.0 - uVig * smoothstep(0.3, 0.95, r * 1.35);
+      col += (hash(vUv * 900.0) - 0.5) * uGrain;
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+};
 
 export function isWebGLAvailable() {
   try {
@@ -82,7 +193,10 @@ export class GameView {
     this.canvas = canvas;
     this.reducedMotion = reducedMotion;
     this.qualityMode = quality;
-    this.tier = quality === 'auto' ? 'high' : quality; // high | medium | low
+    // phones start on Medium (no MSAA or real shadows) to save battery; desktops start on High. Auto mode adapts.
+    const phone = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+    this.autoStartTier = phone ? 'medium' : 'high';
+    this.tier = quality === 'auto' ? this.autoStartTier : quality; // high | medium | low
     this.frame = 0;
     this.fovKick = 0;
     this.shake = 0;
@@ -117,11 +231,21 @@ export class GameView {
       hemiSky: new THREE.Color(PALETTES[0].hemiSky),
       hemiGround: new THREE.Color(PALETTES[0].hemiGround),
       dir: new THREE.Color(PALETTES[0].dir),
+      winA: new THREE.Color(PALETTES[0].winA),
+      winB: new THREE.Color(PALETTES[0].winB),
       fogFar: PALETTES[0].fogFar,
       stars: PALETTES[0].stars,
       rain: PALETTES[0].rain,
       sunY: PALETTES[0].sunY,
       bldH: PALETTES[0].bldH,
+      wet: PALETTES[0].wet,
+      win: PALETTES[0].win,
+    };
+    // shared with the skyline shader; updated by applyPalette
+    this.winUniforms = {
+      uWin: { value: PALETTES[0].win },
+      uWinA: { value: new THREE.Color(PALETTES[0].winA) },
+      uWinB: { value: new THREE.Color(PALETTES[0].winB) },
     };
 
     this.buildLights();
@@ -138,6 +262,16 @@ export class GameView {
     this.hero.remove(this.shadowBlob);
     this.scene.add(this.shadowBlob);
     this.scene.add(this.hero);
+    // the car throws real shadows (High tier) but the glow and flame planes must not
+    this.hero.traverse((o) => {
+      if (o.isMesh && !['underglow', 'shadow'].includes(o.name) && !o.name.startsWith('flame')) o.castShadow = true;
+    });
+
+    // headlights light the road ahead of the car
+    this.headlight = new THREE.SpotLight(0xfff4e2, 230, 80, 0.42, 0.85, 1.5);
+    this.headlight.position.set(0, 0.62, -2.3);
+    this.headlight.target.position.set(0, 0, -30);
+    this.hero.add(this.headlight, this.headlight.target);
 
     this.vehicles = new VehiclePool(this.scene);
     this.pads = new Map();
@@ -164,7 +298,18 @@ export class GameView {
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x222244, 1.0);
     this.sunLight = new THREE.DirectionalLight(0xffffff, 1.6);
     this.sunLight.position.set(-30, 60, 40);
-    this.scene.add(this.hemi, this.sunLight);
+    // one tight shadow map that follows the car (switched on for the High tier only)
+    const sh = this.sunLight.shadow;
+    sh.mapSize.set(2048, 2048);
+    sh.camera.left = -32;
+    sh.camera.right = 32;
+    sh.camera.top = 32;
+    sh.camera.bottom = -32;
+    sh.camera.near = 1;
+    sh.camera.far = 90;
+    sh.bias = -0.0005;
+    sh.normalBias = 0.04;
+    this.scene.add(this.hemi, this.sunLight, this.sunLight.target);
   }
 
   buildSky() {
@@ -217,6 +362,7 @@ export class GameView {
     this.road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, ROAD_LEN), this.roadMat);
     this.road.rotation.x = -Math.PI / 2;
     this.road.position.set(0, 0, -(ROAD_LEN / 2 - 60));
+    this.road.receiveShadow = true;
     this.scene.add(this.road);
 
     // glowing guard rails
@@ -256,13 +402,39 @@ export class GameView {
     this.lampHeads.frustumCulled = false;
     this.scene.add(this.poles, this.lampHeads);
 
-    // skyline / rocks
+    // soft pools of lamp light on the road under every lamp (stronger when the road is wet)
+    this.poolMat = new THREE.MeshBasicMaterial({
+      map: softBlobTexture(),
+      color: 0xffd9a0,
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const poolGeo = new THREE.PlaneGeometry(7, 13);
+    poolGeo.rotateX(-Math.PI / 2);
+    this.lampPools = new THREE.InstancedMesh(poolGeo, this.poolMat, this.lampSlots * 2);
+    this.lampPools.frustumCulled = false;
+    this.scene.add(this.lampPools);
+
+    // skyline / rocks: lit windows come from the patched material, one seed per building
     this.bldSlots = 22;
     this.bldSpacing = 20;
     this.bldMat = new THREE.MeshLambertMaterial({ color: 0x3a2f66, emissive: 0x1a0a28 });
-    this.buildings = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), this.bldMat, this.bldSlots * 2);
-    this.buildings.frustumCulled = false;
-    this.scene.add(this.buildings);
+    patchBuildingMaterial(this.bldMat, this.winUniforms);
+    const makeSkyline = (count) => {
+      const geo = new THREE.BoxGeometry(1, 1, 1);
+      geo.setAttribute('aSeed', new THREE.InstancedBufferAttribute(new Float32Array(count), 1));
+      const mesh = new THREE.InstancedMesh(geo, this.bldMat, count);
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      return mesh;
+    };
+    this.buildings = makeSkyline(this.bldSlots * 2);
+    // a second, farther layer of tall silhouettes that fog into the distance gives the skyline depth
+    this.farSlots = 14;
+    this.farSpacing = 46;
+    this.farBuildings = makeSkyline(this.farSlots * 2);
 
     // speed streaks
     this.streakCount = 64;
@@ -359,7 +531,7 @@ export class GameView {
   setLivery(livery) {
     applyLivery(this.hero, livery);
     this.liveryGlow = livery.glow;
-    this.tunnelLightMat.color.setHex(livery.glow);
+    this.tunnelLightMat.color.setHex(livery.glow).multiplyScalar(2.6);
   }
 
   setReducedMotion(on) {
@@ -368,8 +540,7 @@ export class GameView {
 
   setQualityMode(mode) {
     this.qualityMode = mode;
-    if (mode !== 'auto') this.tier = mode;
-    else this.tier = 'high';
+    this.tier = mode !== 'auto' ? mode : this.autoStartTier;
     this.slowFrames = 0;
     this.applyQuality();
   }
@@ -393,6 +564,58 @@ export class GameView {
     setEnv(this.ceilMat);
     this.rain.visible = this.tier !== 'low';
     this.stars.visible = this.tier !== 'low';
+
+    // real shadows and headlights only where the GPU budget allows; the blob shadow always stays
+    const shadowsOn = this.tier === 'high';
+    if (this.shadowsOn !== shadowsOn) {
+      this.shadowsOn = shadowsOn;
+      this.renderer.shadowMap.enabled = shadowsOn;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.sunLight.castShadow = shadowsOn;
+      this.scene.traverse((o) => {
+        if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => (m.needsUpdate = true));
+      });
+    }
+    this.headlight.visible = this.tier !== 'low';
+
+    this.buildPost();
+    if (this.composer) {
+      this.composer.setPixelRatio(this.renderer.getPixelRatio());
+      this.composer.setSize(window.innerWidth, window.innerHeight);
+    }
+  }
+
+  /**
+   * Post-processing chain: scene -> bloom (HDR lights glow) -> lens look -> tone mapping and colour output.
+   * High tier adds 4x MSAA; Medium skips MSAA; Low renders straight to the screen with no composer.
+   * If the device cannot render to half-float targets we quietly fall back to Low.
+   */
+  buildPost() {
+    const key = this.tier === 'low' ? 'none' : this.tier;
+    if (this.postKey === key) return;
+    this.postKey = key;
+    this.composer?.dispose();
+    this.composer = null;
+    this.bloom = null;
+    this.fxPass = null;
+    if (key === 'none') return;
+    try {
+      const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: key === 'high' ? 4 : 0 });
+      const composer = new EffectComposer(this.renderer, target);
+      composer.addPass(new RenderPass(this.scene, this.camera));
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), key === 'high' ? 0.6 : 0.45, 0.5, 0.92);
+      composer.addPass(this.bloom);
+      this.fxPass = new ShaderPass(FinalShader);
+      composer.addPass(this.fxPass);
+      composer.addPass(new OutputPass());
+      this.composer = composer;
+    } catch (err) {
+      console.warn('Post-processing unavailable, using the plain renderer', err);
+      this.composer = null;
+      this.tier = 'low';
+      this.postKey = 'none';
+    }
   }
 
   resize() {
@@ -439,6 +662,20 @@ export class GameView {
     c.rain += (t.rain - c.rain) * f;
     c.sunY += (t.sunY - c.sunY) * f;
     c.bldH += (t.bldH - c.bldH) * f;
+    c.wet += (t.wet - c.wet) * f;
+    c.win += (t.win - c.win) * f;
+
+    // windows, lamp pools and wet-road look follow the district
+    this.winUniforms.uWin.value = c.win;
+    this.winUniforms.uWinA.value.copy(c.winA);
+    this.winUniforms.uWinB.value.copy(c.winB);
+    this.poolMat.color.copy(c.lamp);
+    this.poolMat.opacity = 0.26 + 0.4 * c.wet;
+    for (const m of [this.roadMat, this.ceilMat]) {
+      m.roughness = 0.68 - 0.52 * c.wet; // wet asphalt is smooth and reflective
+      m.metalness = 0.05 + 0.3 * c.wet;
+      m.envMapIntensity = 0.6 + 1.3 * c.wet;
+    }
 
     this.skyMat.uniforms.top.value.copy(c.top);
     this.skyMat.uniforms.horizon.value.copy(c.horizon);
@@ -448,14 +685,15 @@ export class GameView {
     this.groundMat.color.copy(c.ground);
     this.roadMat.color.copy(c.road).multiplyScalar(2.2);
     this.ceilMat.color.copy(c.road).multiplyScalar(2.2);
-    this.lampMat.color.copy(c.lamp);
-    this.railMat.color.copy(c.accent);
+    // lights are HDR (above 1.0) so they bloom
+    this.lampMat.color.copy(c.lamp).multiplyScalar(3.2);
+    this.railMat.color.copy(c.accent).multiplyScalar(1.9);
     this.bldMat.color.copy(c.bld);
     this.bldMat.emissive.copy(c.emis);
     this.hemi.color.copy(c.hemiSky);
     this.hemi.groundColor.copy(c.hemiGround);
     this.sunLight.color.copy(c.dir);
-    this.sunMat.color.copy(c.sun);
+    this.sunMat.color.copy(c.sun).multiplyScalar(1.5);
     this.starMat.opacity = c.stars;
     this.rainMat.opacity = c.rain * 0.5;
   }
@@ -570,6 +808,11 @@ export class GameView {
 
     // underglow follows the car, flipped on the ceiling
     parts.glow.visible = pose.level === 0 && !p.transit;
+
+    // the shadow-casting sun follows the car so its single shadow map stays sharp
+    this.sunLight.position.set(pose.x - 14, 26, 14);
+    this.sunLight.target.position.set(pose.x, 0, -4);
+    this.sunLight.target.updateMatrixWorld();
   }
 
   updateCamera(state, dt, pose, speedFrac) {
@@ -650,11 +893,18 @@ export class GameView {
         dummy.position.set(s * (edge + 0.9), 7.0, z);
         dummy.updateMatrix();
         this.lampHeads.setMatrixAt(i, dummy.matrix);
+        // light pools only ahead of the car; one under the camera would be a huge blurry blob
+        dummy.position.set(s * (edge - 2.4), 0.04, z);
+        dummy.scale.setScalar(z > -4 ? 0.0001 : 1);
+        dummy.updateMatrix();
+        this.lampPools.setMatrixAt(i, dummy.matrix);
+        dummy.scale.set(1, 1, 1);
         i++;
       }
     }
     this.poles.instanceMatrix.needsUpdate = true;
     this.lampHeads.instanceMatrix.needsUpdate = true;
+    this.lampPools.instanceMatrix.needsUpdate = true;
 
     // skyline
     const bldBase = dist % this.bldSpacing;
@@ -672,10 +922,36 @@ export class GameView {
         dummy.position.set(s * (off + width / 2), height / 2, z);
         dummy.scale.set(width, height, 7 + hs2 * 7);
         dummy.updateMatrix();
-        this.buildings.setMatrixAt(i++, dummy.matrix);
+        this.buildings.setMatrixAt(i, dummy.matrix);
+        this.buildings.geometry.attributes.aSeed.setX(i, hs * 0.97 + hs2 * 0.03);
+        i++;
       }
     }
     this.buildings.instanceMatrix.needsUpdate = true;
+    this.buildings.geometry.attributes.aSeed.needsUpdate = true;
+
+    // far skyline layer: bigger, taller, further back
+    const farBase = dist % this.farSpacing;
+    const farIndex = Math.floor(dist / this.farSpacing);
+    i = 0;
+    for (let k = 0; k < this.farSlots; k++) {
+      const idx = farIndex + k + 1000;
+      const z = -(k * this.farSpacing - farBase) - 30;
+      for (const s of [-1, 1]) {
+        const hs = hash(idx * 2.3 + (s > 0 ? 1 : 0));
+        const hs2 = hash(idx * 5.1 + (s > 0 ? 3 : 8));
+        const width = 18 + hs * 24;
+        const height = (30 + hs2 * 80) * this.cur.bldH;
+        dummy.position.set(s * (edge + 70 + hs * 70 + width / 2), height / 2, z);
+        dummy.scale.set(width, height, 16 + hs2 * 14);
+        dummy.updateMatrix();
+        this.farBuildings.setMatrixAt(i, dummy.matrix);
+        this.farBuildings.geometry.attributes.aSeed.setX(i, hs2 * 0.9 + 0.05);
+        i++;
+      }
+    }
+    this.farBuildings.instanceMatrix.needsUpdate = true;
+    this.farBuildings.geometry.attributes.aSeed.needsUpdate = true;
 
     // speed streaks
     const strVis = this.reducedMotion ? 0 : clamp((speedFrac - 0.25) * 1.2, 0, 0.7);
@@ -787,6 +1063,14 @@ export class GameView {
   }
 
   updateEffects(state, dt, speedFrac) {
+    // lens look: aberration grows with speed and boosts; both it and the grain are off under reduced motion
+    if (this.fxPass) {
+      const u = this.fxPass.uniforms;
+      u.uAberr.value = this.reducedMotion ? 0 : 0.002 + speedFrac * 0.009 + this.fovKick * 0.0006;
+      u.uGrain.value = this.reducedMotion ? 0 : 0.01;
+      u.uTime.value = (state.t ?? 0) % 50;
+    }
+
     // rain
     if (this.rain.visible && this.cur.rain > 0.02) {
       const pos = this.rain.geometry.attributes.position.array;
@@ -842,7 +1126,7 @@ export class GameView {
   trackPerformance(dt) {
     if (this.qualityMode !== 'auto' || this.tier === 'low') return;
     this.frameTimes.push(dt);
-    if (this.frameTimes.length < 90) return;
+    if (this.frameTimes.length < 45) return; // a short window, so a weak GPU drops a tier within a second or two
     const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
     this.frameTimes.length = 0;
     if (avg > 0.024) this.slowFrames++;
@@ -855,7 +1139,8 @@ export class GameView {
   }
 
   render() {
-    this.renderer.render(this.scene, this.camera);
+    if (this.composer) this.composer.render();
+    else this.renderer.render(this.scene, this.camera);
   }
 
   /** Menu / garage backdrop: a slowly scrolling road with the car turning in the foreground. */

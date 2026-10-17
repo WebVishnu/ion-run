@@ -49,6 +49,18 @@ Keys can be remapped in Settings. Gamepad and optional tilt steering are support
 - In a tunnel, hop and hold to stick to the roof and drive upside down for double score. Suction runs out.
 - Earn coins to unlock liveries in the Garage. Three rotating goals and a daily run give bonuses.
 
+## Graphics
+
+Three quality tiers, chosen automatically and adjustable in Settings:
+
+| Tier | What it adds |
+|---|---|
+| High | Bloom glow on lights, 4x MSAA, real car and traffic shadows, headlight beams, reflective clearcoat paint |
+| Medium | Bloom and reflections, no MSAA or real shadows (phones start here) |
+| Low | Plain rendering with no post-processing, for weak devices |
+
+Lit skyline windows, wet-road reflections in the rain district, and lamp light pools are on every tier above Low.
+
 ## Project layout
 
 ```

@@ -5,6 +5,8 @@ test.describe('Visual tour', () => {
     await page.addInitScript(() => {
       try {
         localStorage.clear();
+        // Medium graphics keeps the bloom look in screenshots while staying fast enough on software WebGL
+        localStorage.setItem('ion-run:save:v1', JSON.stringify({ tutorialSeen: true, settings: { quality: 'medium' } }));
       } catch {
         /* ignore */
       }

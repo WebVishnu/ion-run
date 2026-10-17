@@ -554,6 +554,8 @@ async function boot() {
     get camBlend() {
       return view.camBlend;
     },
+    /** test hook: jump the look of the world to a district without driving there */
+    district: (i) => view.setDistrict(i, true),
   };
 }
 

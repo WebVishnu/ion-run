@@ -16,9 +16,11 @@ class IonRun {
   }
 
   async open() {
+    // fresh save, Low graphics: these tests check game logic, and software WebGL is too slow for the full effects
     await this.page.addInitScript(() => {
       try {
         localStorage.clear();
+        localStorage.setItem('ion-run:save:v1', JSON.stringify({ settings: { quality: 'low' } }));
       } catch {
         /* ignore */
       }
